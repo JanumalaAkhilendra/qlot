@@ -188,9 +188,13 @@
                                       :if-does-not-exist :create)
             (format out "#!/bin/sh
 CURRENT=$(dirname $0)
-cd \"$CURRENT/../../\"
-exec qlot exec /bin/sh \"$CURRENT/../~A\" \"$@\"
+ROOT=\"$CURRENT/../../\"
+QUICKLISP_HOME=\"$ROOT\"
+CL_SOURCE_REGISTRY=\"$ROOT~C$CL_SOURCE_REGISTRY\"
+cd \"$ROOT\"
+exec /bin/sh \"$CURRENT/../~A\" \"$@\"
 "
+            #+unix #\: #-unix #\;
             (subseq (namestring script)
                     (length (namestring qlhome)))))
           #+sbcl (sb-posix:chmod to #o700)))))
