@@ -6,6 +6,9 @@
   (:import-from #:qlot/source
                 #:source-dist
                 #:source-dist-name
+                #:source-local
+                #:source-local-path
+                #:source-project-name
                 #:source-version
                 #:source-install-url
                 #:freeze-source)
@@ -210,6 +213,24 @@ exec /bin/sh \"$CURRENT/../~A\" \"$@\"
                        (source-version source))))
         new-dist))))
 
+(defun dump-source-registry-conf (qlhome file sources)
+  (uiop:with-output-file (out file :if-exists :supersede)
+    (let ((*print-pretty* nil)
+          (*print-case* :downcase))
+      (format out
+              "~&(~{~S~^~% ~})~%"
+              `(:source-registry
+                :ignore-inherited-configuration
+                (:also-exclude ".qlot")
+                (:tree ,(probe-file (merge-pathnames #P"../" qlhome)))
+                ,@(loop for source in sources
+                        when (typep source 'source-local)
+                        collect (progn
+                                  (message "Adding ~S located at '~A'."
+                                           (source-project-name source)
+                                           (source-local-path source))
+                                  `(:tree ,(source-local-path source)))))))))
+
 (defun dump-qlfile-lock (file sources)
   (uiop:with-output-file (out file :if-exists :supersede)
     (let ((*print-pretty* nil)
@@ -228,7 +249,9 @@ exec /bin/sh \"$CURRENT/../~A\" \"$@\"
           (tmp-dir (or cache-directory (tmp-directory))))
       (ensure-directories-exist tmp-dir)
       (unwind-protect
-          (dolist (source sources)
+          (dolist (source (remove-if (lambda (source)
+                                       (typep source 'source-local))
+                                     sources))
             (with-quicklisp-home qlhome
               (with-package-functions #:ql-dist (find-dist version)
                 (let ((dist (find-dist (source-dist-name source))))
@@ -269,6 +292,9 @@ exec /bin/sh \"$CURRENT/../~A\" \"$@\"
               (message "Removing dist ~S." (name dist))
               (uninstall dist))))))
 
+    (dump-source-registry-conf qlhome
+                               (merge-pathnames #P"source-registry.conf" qlhome)
+                               sources)
     (dump-qlfile-lock (make-pathname :name (file-namestring qlfile)
                                      :type "lock"
                                      :defaults qlfile)
